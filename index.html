@@ -1300,6 +1300,11 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
 .home-track{display:flex;height:100%;will-change:transform}
 .home-page{flex:0 0 100%;min-width:0;padding:0 18px;box-sizing:border-box}
 .home .app-icon img,.home .app-icon svg{pointer-events:none;-webkit-user-drag:none}
+.status .island.island-music{width:136px;height:34px;justify-content:space-between;padding:0 10px 0 8px;pointer-events:auto;cursor:pointer}
+.im-art{width:23px;height:23px;border-radius:6px;flex:none;background-size:cover!important;background-position:center!important}
+.im-eq{display:flex;gap:2.5px;align-items:center;height:18px}.im-eq b{width:2.6px;border-radius:2px;background:#1ed760;animation:imeq .8s ease-in-out infinite}
+.im-eq b:nth-child(2){animation-delay:.15s}.im-eq b:nth-child(3){animation-delay:.3s}.im-eq b:nth-child(4){animation-delay:.45s}
+@keyframes imeq{0%,100%{height:4px}50%{height:16px}}
 /* Books */
 .bk{--accent:#ff6a00}
 .bk-cover{border-radius:4px 8px 8px 4px;background:linear-gradient(90deg,#00000018 0 4%,transparent 8%),linear-gradient(160deg,#f6efe0,#e7d9bd);box-shadow:0 8px 20px #0003;display:flex;flex-direction:column;justify-content:space-between;padding:12% 10%;color:#4b3a24;flex:none;position:relative;overflow:hidden}
@@ -1720,6 +1725,25 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
       if(n.open)setTimeout(()=>go(n.open,n.openId||undefined),60);
     }));
   }
+  /* ---------- Dynamic Island: now-playing indicator ---------- */
+  let islandKey='';
+  function updateIslandMusic(){
+    const island=document.querySelector('#status .island');if(!island||island.classList.contains('island-expanded'))return;
+    const page=stack[stack.length-1].page,s=cur();
+    const show=!!(s&&S.mu.playing&&page!=='music'&&page!=='nowplaying');
+    const key=show?`${S.mu.idx}|${coverOf(s)}`:'';
+    const has=!!island.querySelector('.im-art');
+    if(key===islandKey&&has===show)return;
+    islandKey=key;
+    island.classList.toggle('island-music',show);
+    island.innerHTML=show?`<span class="im-art" style="${artStyle(S.mu.idx)}"></span><span class="im-eq"><b></b><b></b><b></b><b></b></span>`:'';
+    island.setAttribute('title',show?`${s.title} · ${s.artist}`:'');
+  }
+  document.querySelector('#status .island').addEventListener('click',()=>{
+    const island=document.querySelector('#status .island');
+    if(!island.classList.contains('island-music')||stack[stack.length-1].page==='lock')return;
+    go('nowplaying');
+  });
   const PAGES={clock:pageClock,weather:pageWeather,wxcity:pageWxCity,stocks:pageStocks,stock:pageStock,music:pageMusic,nowplaying:pageNowPlaying,books:pageBooks,book:pageBook,podcasts:pagePodcasts,podcast:pagePodcast,safari:pageSafari,blog:pageBlog,mail:pageMail,mailmsg:pageMailMsg,maps:pageMaps};
   const rerender=()=>{const sc=el.querySelector('.xa-scroll'),y=sc?sc.scrollTop:0;draw();const n=el.querySelector('.xa-scroll');if(n)n.scrollTop=y};
   function act(b,e){
@@ -1766,6 +1790,7 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
   let last=Date.now();
   setInterval(()=>{
     const now=Date.now(),dt=(now-last)/1000;last=now;
+    updateIslandMusic();
     const sw=document.getElementById('swTime');if(sw)sw.textContent=fmtSW(swNow());
     if(S.tm.run&&tmNow()<=0){S.tm.run=false;S.tm.left=0;if(stack.at(-1).page==='clock')rerender()}
     const tm=document.getElementById('tmTime');if(tm){const l=tmNow();tm.textContent=fmtTM(l);const arc=document.getElementById('tmArc');if(arc){const C=2*Math.PI*125;arc.setAttribute('stroke-dashoffset',String(C*(1-(S.tm.total?l/S.tm.total:0))))}}
