@@ -1854,7 +1854,9 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
   const R=46;
   const origins={};
   let lastClick=null,cleanup=null;
+  let tabAt=0;
   document.addEventListener('click',e=>{
+    if(e.target.closest){const m=e.target.closest('.tabbar,.xa-tabs,.sp-tabs,[class*="-tabs"],[role="tablist"]');if(m&&m!==el&&m!==document.body)tabAt=Date.now()}
     const t=e.target.closest&&e.target.closest('.home [data-go]');
     if(!t)return;
     const ic=t.querySelector('.app-icon')||t;
@@ -1895,11 +1897,12 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
     const key=top.page+'|'+depth+'|'+(top.id==null?'':top.id);
     const old=prev;
     if(cleanup){cleanup();cleanup=null}
-    const kind=key===old.key?null:
+    let kind=key===old.key?null:
       (old.page==='home'&&depth>old.depth)?'open':
       (top.page==='home'&&old.page!=='home'&&old.page!=='lock')?'close':
       (old.page==='lock'&&top.page!=='lock')?'unlock':
       (old.page!=='home'&&old.page!=='lock'&&top.page!=='home'&&top.page!=='lock')?(depth>old.depth?'push':depth<old.depth?'pop':null):null;
+    if((kind==='push'||kind==='pop')&&Date.now()-tabAt<600)kind=null; // 切換分頁/選項：直接切，不滑動
     const g=kind?ghostOf():null;
     baseRender();
     prev={page:top.page,depth,key,root:stack[1]?stack[1].page:null};
