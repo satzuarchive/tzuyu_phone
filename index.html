@@ -1305,6 +1305,15 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
 .im-eq{display:flex;gap:2.5px;align-items:center;height:18px}.im-eq b{width:2.6px;border-radius:2px;background:#1ed760;animation:imeq .8s ease-in-out infinite}
 .im-eq b:nth-child(2){animation-delay:.15s}.im-eq b:nth-child(3){animation-delay:.3s}.im-eq b:nth-child(4){animation-delay:.45s}
 @keyframes imeq{0%,100%{height:4px}50%{height:16px}}
+.lm-card{display:block!important;cursor:default!important;padding:13px 14px 8px!important}
+.lm-card:active{transform:none!important}
+.ln-list:has(.lm-card) .ln-card[data-ln="3"]{display:none}
+.lm-top{display:flex;align-items:center;gap:11px}.lm-art{width:46px;height:46px;border-radius:9px;flex:none;background-size:cover!important;background-position:center!important}
+.lm-tx{flex:1;min-width:0}.lm-tx b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lm-tx small{font-size:13.5px;opacity:.75}
+.lm-card .im-eq b{background:#fff}.im-eq.off b{animation:none;height:4px}
+.lm-prog{display:flex;align-items:center;gap:8px;margin-top:11px;font-size:11px;opacity:.85;font-variant-numeric:tabular-nums}
+.lm-bar{flex:1;height:6px;border-radius:3px;background:#ffffff40;overflow:hidden}.lm-bar i{display:block;height:100%;background:#fff;border-radius:3px}
+.lm-ctl{display:flex;justify-content:center;gap:38px;align-items:center;margin-top:4px}.lm-ctl button{border:0;background:none;color:#fff;cursor:pointer;padding:5px;display:grid}
 /* Books */
 .bk{--accent:#ff6a00}
 .bk-cover{border-radius:4px 8px 8px 4px;background:linear-gradient(90deg,#00000018 0 4%,transparent 8%),linear-gradient(160deg,#f6efe0,#e7d9bd);box-shadow:0 8px 20px #0003;display:flex;flex-direction:column;justify-content:space-between;padding:12% 10%;color:#4b3a24;flex:none;position:relative;overflow:hidden}
@@ -1713,24 +1722,54 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
 
   /* ---------- Lock-screen notifications (story.lockNotifications) ---------- */
   const LN_ICON={LINE:'LINE',Instagram:'Instagram','郵件':'Mail',Mail:'Mail','訊息':'Messages',Messages:'Messages','行事曆':'Calendar',Calendar:'Calendar','Spotify':'Spotify'};
-  function addLockNotifications(){
-    const ls=document.getElementById('lockScreen'),list=arr(story.lockNotifications);if(!ls||!list.length)return;
-    const box=document.createElement('div');box.className='ln-list';
-    box.innerHTML=list.slice(0,4).map((n,i)=>`<button class="ln-card" data-ln="${i}"><span class="ln-ic">${iconSvg(LN_ICON[n.app]||n.app||'Messages')}</span><span class="ln-tx"><span class="ln-top"><b>${E(n.title)}</b><small>${E(n.time)}</small></span><span class="ln-msg">${E(n.text)}</span></span></button>`).join('')
-      +(list.length>4?`<div class="ln-more">還有 ${list.length-4} 則通知</div>`:'');
-    ls.appendChild(box);
-    box.querySelectorAll('.ln-card').forEach(b=>b.addEventListener('click',e=>{
-      e.stopPropagation();const n=list[Number(b.dataset.ln)]||{};
-      unlockPhone();
-      if(n.open)setTimeout(()=>go(n.open,n.openId||undefined),60);
+  let lockMusicKey='',lockMusicKeep=false;
+  const lockMusicWanted=()=>!!cur()&&(S.mu.playing||lockMusicKeep);
+  function lockMusicHtml(){
+    const s=cur(),d=songLen(s),i=S.mu.idx;
+    return `<div class="lm-top"><span class="lm-art" style="${artStyle(i)}"></span><span class="lm-tx"><b>${E(s.title)}</b><small>${E(s.artist)}</small></span><span class="im-eq${S.mu.playing?'':' off'}"><b></b><b></b><b></b><b></b></span></div>`
+      +`<div class="lm-prog"><span id="lmPos">${mmss(S.mu.pos)}</span><div class="lm-bar"><i id="lmBar" style="width:${Math.min(100,S.mu.pos/d*100)}%"></i></div><span id="lmLeft">-${mmss(d-S.mu.pos)}</span></div>`
+      +`<div class="lm-ctl"><button data-lm="prev" aria-label="上一首">${ic('prev',30,0,'currentColor')}</button><button data-lm="toggle" aria-label="播放或暫停">${playGlyph(S.mu.playing,36)}</button><button data-lm="next" aria-label="下一首">${ic('next',30,0,'currentColor')}</button></div>`;
+  }
+  function refreshLockMusic(){
+    const ls=document.getElementById('lockScreen');if(!ls)return;
+    let box=ls.querySelector('.ln-list');
+    let card=ls.querySelector('.lm-card');
+    const want=lockMusicWanted();
+    lockMusicKey=want?`${S.mu.idx}|${S.mu.playing}|${coverOf(cur())}`:'';
+    if(!want){if(card)card.remove();return}
+    if(!box){box=document.createElement('div');box.className='ln-list';ls.appendChild(box)}
+    if(!card){card=document.createElement('div');card.className='ln-card lm-card';box.prepend(card)}
+    fetchCover(cur());
+    card.innerHTML=lockMusicHtml();
+    card.querySelectorAll('[data-lm]').forEach(b=>b.addEventListener('click',e=>{
+      e.stopPropagation();const a=b.dataset.lm,n=songs().length;if(!n)return;
+      lockMusicKeep=true;
+      if(a==='toggle'){S.mu.playing=!S.mu.playing;syncPlayback(false)}
+      else{if(a==='prev'&&S.mu.pos>3)S.mu.pos=0;else{S.mu.idx=(S.mu.idx+(a==='next'?1:n-1))%n;S.mu.pos=0}syncPlayback(true)}
+      refreshLockMusic();
     }));
+  }
+  function addLockNotifications(){
+    const ls=document.getElementById('lockScreen'),list=arr(story.lockNotifications);if(!ls)return;
+    if(list.length){
+      const box=document.createElement('div');box.className='ln-list';
+      box.innerHTML=list.slice(0,4).map((n,i)=>`<button class="ln-card" data-ln="${i}"><span class="ln-ic">${iconSvg(LN_ICON[n.app]||n.app||'Messages')}</span><span class="ln-tx"><span class="ln-top"><b>${E(n.title)}</b><small>${E(n.time)}</small></span><span class="ln-msg">${E(n.text)}</span></span></button>`).join('')
+        +(list.length>4?`<div class="ln-more">還有 ${list.length-4} 則通知</div>`:'');
+      ls.appendChild(box);
+      box.querySelectorAll('.ln-card[data-ln]').forEach(b=>b.addEventListener('click',e=>{
+        e.stopPropagation();const n=list[Number(b.dataset.ln)]||{};
+        unlockPhone();
+        if(n.open)setTimeout(()=>go(n.open,n.openId||undefined),60);
+      }));
+    }
+    refreshLockMusic();
   }
   /* ---------- Dynamic Island: now-playing indicator ---------- */
   let islandKey='';
   function updateIslandMusic(){
     const island=document.querySelector('#status .island');if(!island||island.classList.contains('island-expanded'))return;
     const page=stack[stack.length-1].page,s=cur();
-    const show=!!(s&&S.mu.playing&&page!=='music'&&page!=='nowplaying');
+    const show=!!(s&&S.mu.playing&&page!=='music'&&page!=='nowplaying'&&page!=='lock');
     const key=show?`${S.mu.idx}|${coverOf(s)}`:'';
     const has=!!island.querySelector('.im-art');
     if(key===islandKey&&has===show)return;
@@ -1791,6 +1830,10 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
   setInterval(()=>{
     const now=Date.now(),dt=(now-last)/1000;last=now;
     updateIslandMusic();
+    if(stack[stack.length-1].page==='lock'){
+      const want=lockMusicWanted(),key=want?`${S.mu.idx}|${S.mu.playing}|${coverOf(cur())}`:'';
+      if(key!==lockMusicKey||want!==!!document.querySelector('#lockScreen .lm-card'))refreshLockMusic();
+    }else lockMusicKeep=false;
     const sw=document.getElementById('swTime');if(sw)sw.textContent=fmtSW(swNow());
     if(S.tm.run&&tmNow()<=0){S.tm.run=false;S.tm.left=0;if(stack.at(-1).page==='clock')rerender()}
     const tm=document.getElementById('tmTime');if(tm){const l=tmNow();tm.textContent=fmtTM(l);const arc=document.getElementById('tmArc');if(arc){const C=2*Math.PI*125;arc.setAttribute('stroke-dashoffset',String(C*(1-(S.tm.total?l/S.tm.total:0))))}}
@@ -1799,7 +1842,7 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
       if(m==='file'){if(player.dataset.src===String(s.audio).trim())S.mu.pos=player.currentTime||0}
       else if(m==='spotify'){if(spMatch(s))S.mu.pos=Math.min(d,SP.st.pos+(SP.st.paused?0:(now-SP.st.at)/1000))}
       else if(S.mu.playing){S.mu.pos+=dt;if(S.mu.pos>=d){musicNext(false);return}}
-      const p=Math.min(100,S.mu.pos/d*100);const nb=document.getElementById('npBar');if(nb)nb.style.width=p+'%';const mb=document.getElementById('miniBar');if(mb)mb.style.width=p+'%';const np=document.getElementById('npPos');if(np)np.textContent=mmss(S.mu.pos);const nl=document.getElementById('npLeft');if(nl)nl.textContent='-'+mmss(d-S.mu.pos)}
+      const p=Math.min(100,S.mu.pos/d*100);const nb=document.getElementById('npBar');if(nb)nb.style.width=p+'%';const mb=document.getElementById('miniBar');if(mb)mb.style.width=p+'%';const np=document.getElementById('npPos');if(np)np.textContent=mmss(S.mu.pos);const lb=document.getElementById('lmBar');if(lb){lb.style.width=p+'%';document.getElementById('lmPos').textContent=mmss(S.mu.pos);document.getElementById('lmLeft').textContent='-'+mmss(d-S.mu.pos)}const nl=document.getElementById('npLeft');if(nl)nl.textContent='-'+mmss(d-S.mu.pos)}
   },100);
 })();
 </script>
