@@ -1902,7 +1902,7 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
       (top.page==='home'&&old.page!=='home'&&old.page!=='lock')?'close':
       (old.page==='lock'&&top.page!=='lock')?'unlock':
       (old.page!=='home'&&old.page!=='lock'&&top.page!=='home'&&top.page!=='lock')?(depth>old.depth?'push':depth<old.depth?'pop':null):null;
-    if((kind==='push'||kind==='pop')&&Date.now()-tabAt<600)kind=null; // 切換分頁/選項：直接切，不滑動
+    if(kind==='push'||kind==='pop')kind=null; // App 內換頁一律直接切換，只保留開/關 App 與解鎖動畫
     const g=kind?ghostOf():null;
     baseRender();
     prev={page:top.page,depth,key,root:stack[1]?stack[1].page:null};
