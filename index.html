@@ -1846,4 +1846,115 @@ const fit=()=>{const p=document.querySelector('.phone');const pad=innerWidth<=48
   },100);
 })();
 </script>
+<script>
+/* ===== iOS 風格轉場：App 開啟／關閉縮放、頁面推入／返回滑動、解鎖上滑 ===== */
+(function(){
+  if(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  const EZ='cubic-bezier(.32,.72,0,1)';
+  const R=46;
+  const origins={};
+  let lastClick=null,cleanup=null;
+  document.addEventListener('click',e=>{
+    const t=e.target.closest&&e.target.closest('.home [data-go]');
+    if(!t)return;
+    const ic=t.querySelector('.app-icon')||t;
+    lastClick={page:t.dataset.go,rect:ic.getBoundingClientRect(),at:Date.now()};
+  },true);
+
+  function ghostOf(){
+    const g=el.cloneNode(true);
+    g.querySelectorAll('video,audio,iframe').forEach(n=>n.remove());
+    Object.assign(g.style,{position:'absolute',left:el.offsetLeft+'px',top:el.offsetTop+'px',width:el.offsetWidth+'px',height:el.offsetHeight+'px',margin:'0',pointerEvents:'none',zIndex:'2'});
+    el.parentNode.insertBefore(g,el.nextSibling);
+    g.scrollTop=el.scrollTop;
+    return g;
+  }
+  const local=(r)=>{
+    const er=el.getBoundingClientRect(),k=er.width/el.offsetWidth||1;
+    const w=r.width/k,h=r.height/k;
+    return {w,h,cx:(r.left-er.left)/k+w/2,cy:(r.top-er.top)/k+h/2};
+  };
+  const clipInset=(t,r,b,l,rad)=>`inset(${t}px ${r}px ${b}px ${l}px round ${rad}px)`;
+  // 把整個畫面縮成 icon 大小（以方形視窗裁切）
+  function iconPose(o){
+    const W=el.offsetWidth,H=el.offsetHeight;
+    const s=Math.max(.05,o.w/W);
+    const v=Math.max(0,(H-W)/2);
+    return {
+      transform:`translate(${o.cx-W/2}px,${o.cy-H/2}px) scale(${s})`,
+      clipPath:clipInset(v,0,v,0,o.w*.225/s)
+    };
+  }
+  const FULL={transform:'translate(0px,0px) scale(1)',clipPath:clipInset(0,0,0,0,R)};
+  const play=(n,frames,ms,extra={})=>n.animate(frames,Object.assign({duration:ms,easing:EZ,fill:'both'},extra));
+
+  let prev={page:stack[stack.length-1].page,depth:stack.length,key:stack[stack.length-1].page+'|'+stack.length+'|',root:null};
+  const baseRender=render;
+  render=function(){
+    const top=stack[stack.length-1],depth=stack.length;
+    const key=top.page+'|'+depth+'|'+(top.id==null?'':top.id);
+    const old=prev;
+    if(cleanup){cleanup();cleanup=null}
+    const kind=key===old.key?null:
+      (old.page==='home'&&depth>old.depth)?'open':
+      (top.page==='home'&&old.page!=='home'&&old.page!=='lock')?'close':
+      (old.page==='lock'&&top.page!=='lock')?'unlock':
+      (old.page!=='home'&&old.page!=='lock'&&top.page!=='home'&&top.page!=='lock')?(depth>old.depth?'push':depth<old.depth?'pop':null):null;
+    const g=kind?ghostOf():null;
+    baseRender();
+    prev={page:top.page,depth,key,root:stack[1]?stack[1].page:null};
+    if(!kind)return;
+    const W=el.offsetWidth,H=el.offsetHeight;
+    const anims=[];
+    el.style.position='relative';el.style.zIndex='1';el.style.willChange='transform';
+    const end=()=>{anims.forEach(a=>{try{a.cancel()}catch(e){}});if(g&&g.parentNode)g.remove();el.style.position='';el.style.zIndex='';el.style.willChange='';cleanup=null};
+    cleanup=end;
+    let ms=420,done;
+    if(kind==='open'){
+      let o=null;
+      if(lastClick&&lastClick.page===top.page&&Date.now()-lastClick.at<1500)o=local(lastClick.rect);
+      lastClick=null;
+      if(!o)o={w:60,h:60,cx:W/2,cy:H*.7};
+      origins[top.page]=o;
+      const p=iconPose(o);
+      anims.push(play(el,[{transform:p.transform,clipPath:p.clipPath,opacity:0},{opacity:1,offset:.22},{transform:FULL.transform,clipPath:FULL.clipPath,opacity:1}],ms));
+      anims.push(play(g,[{transform:'scale(1)',opacity:1},{transform:'scale(.9)',opacity:0}],ms,{easing:'ease-out'}));
+      g.style.zIndex='0';
+      done=anims[0];
+    }else if(kind==='close'){
+      const root=old.root;let o=null;
+      const er=el.getBoundingClientRect();
+      if(root){
+        const cands=[...el.querySelectorAll('[data-go="'+root+'"]')];
+        for(const c of cands){const ic=c.querySelector('.app-icon')||c;const r=ic.getBoundingClientRect();if(r.width>0&&r.left>=er.left-2&&r.right<=er.right+2){o=local(r);break}}
+      }
+      if(!o)o=origins[root]||{w:60,h:60,cx:W/2,cy:H*.7};
+      const p=iconPose(o);
+      ms=400;
+      anims.push(play(g,[{transform:FULL.transform,clipPath:FULL.clipPath,opacity:1},{opacity:1,offset:.7},{transform:p.transform,clipPath:p.clipPath,opacity:0}],ms));
+      anims.push(play(el,[{transform:'scale(.9)',opacity:0},{transform:'scale(1)',opacity:1}],ms,{easing:'ease-out'}));
+      g.style.zIndex='2';
+      done=anims[0];
+    }else if(kind==='unlock'){
+      ms=480;
+      anims.push(play(g,[{transform:'translateY(0px)',clipPath:clipInset(0,0,0,0,R),opacity:1},{opacity:1,offset:.5},{transform:`translateY(${-H*.45}px)`,clipPath:clipInset(H*.45,0,0,0,R),opacity:0}],ms));
+      anims.push(play(el,[{transform:'scale(.92)',opacity:.4},{transform:'scale(1)',opacity:1}],ms));
+      done=anims[0];
+    }else if(kind==='push'){
+      ms=400;
+      anims.push(play(el,[{transform:`translateX(${W}px)`,clipPath:clipInset(0,W,0,0,R)},{transform:'translateX(0px)',clipPath:clipInset(0,0,0,0,R)}],ms));
+      anims.push(play(g,[{transform:'translateX(0px)',clipPath:clipInset(0,0,0,0,R),filter:'brightness(1)'},{transform:`translateX(${-W*.3}px)`,clipPath:clipInset(0,0,0,W*.3,R),filter:'brightness(.82)'}],ms));
+      g.style.zIndex='0';
+      done=anims[0];
+    }else{ // pop
+      ms=380;
+      anims.push(play(g,[{transform:'translateX(0px)',clipPath:clipInset(0,0,0,0,R)},{transform:`translateX(${W}px)`,clipPath:clipInset(0,W,0,0,R)}],ms));
+      anims.push(play(el,[{transform:`translateX(${-W*.3}px)`,clipPath:clipInset(0,0,0,W*.3,R),filter:'brightness(.82)'},{transform:'translateX(0px)',clipPath:clipInset(0,0,0,0,R),filter:'brightness(1)'}],ms));
+      g.style.zIndex='2';
+      done=anims[0];
+    }
+    done.finished.then(()=>{if(cleanup===end)end()}).catch(()=>{});
+  };
+})();
+</script>
 </body></html>
